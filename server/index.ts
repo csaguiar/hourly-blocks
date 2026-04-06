@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import pool from './db.js'
+import db from './db.js'
 
 const app = express()
 app.use(cors())
@@ -8,107 +8,101 @@ app.use(express.json())
 
 // --- Categories ---
 
-app.get('/api/categories', async (_req, res) => {
-  const result = await pool.query('SELECT * FROM categories ORDER BY sort_order, id')
-  res.json(result.rows)
+app.get('/api/categories', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM categories ORDER BY sort_order, id').all()
+  res.json(rows)
 })
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', (req, res) => {
   const { name, color, sort_order } = req.body
-  const result = await pool.query(
-    'INSERT INTO categories (name, color, sort_order) VALUES ($1, $2, $3) RETURNING *',
-    [name, color || '#3B82F6', sort_order ?? 0]
-  )
-  res.status(201).json(result.rows[0])
+  const result = db.prepare(
+    'INSERT INTO categories (name, color, sort_order) VALUES (?, ?, ?)'
+  ).run(name, color || '#3B82F6', sort_order ?? 0)
+  const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid)
+  res.status(201).json(row)
 })
 
-app.put('/api/categories/:id', async (req, res) => {
+app.put('/api/categories/:id', (req, res) => {
   const { name, color, sort_order } = req.body
-  const result = await pool.query(
-    'UPDATE categories SET name = COALESCE($1, name), color = COALESCE($2, color), sort_order = COALESCE($3, sort_order) WHERE id = $4 RETURNING *',
-    [name, color, sort_order, req.params.id]
-  )
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' })
-  res.json(result.rows[0])
+  const result = db.prepare(
+    'UPDATE categories SET name = COALESCE(?, name), color = COALESCE(?, color), sort_order = COALESCE(?, sort_order) WHERE id = ?'
+  ).run(name, color, sort_order, req.params.id)
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' })
+  const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id)
+  res.json(row)
 })
 
-app.delete('/api/categories/:id', async (req, res) => {
-  await pool.query('DELETE FROM categories WHERE id = $1', [req.params.id])
+app.delete('/api/categories/:id', (req, res) => {
+  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id)
   res.status(204).end()
 })
 
 // --- Blocks ---
 
-// Get blocks for a date range
-app.get('/api/blocks', async (req, res) => {
+app.get('/api/blocks', (req, res) => {
   const { start, end } = req.query
   if (!start || !end) return res.status(400).json({ error: 'start and end query params required' })
-  const result = await pool.query(
+  const rows = db.prepare(
     `SELECT b.id, b.date, b.hour, b.category_id, b.is_prep, c.name as category_name, c.color as category_color
      FROM blocks b
      LEFT JOIN categories c ON b.category_id = c.id
-     WHERE b.date >= $1 AND b.date <= $2
-     ORDER BY b.date, b.hour`,
-    [start, end]
-  )
-  res.json(result.rows)
+     WHERE b.date >= ? AND b.date <= ?
+     ORDER BY b.date, b.hour`
+  ).all(start, end)
+  // Convert is_prep from 0/1 to boolean
+  res.json((rows as any[]).map(r => ({ ...r, is_prep: !!r.is_prep })))
 })
 
-// Set a block (upsert)
-app.put('/api/blocks', async (req, res) => {
+app.put('/api/blocks', (req, res) => {
   const { date, hour, category_id, is_prep } = req.body
   if (category_id === null) {
-    // Clear the block
-    await pool.query('DELETE FROM blocks WHERE date = $1 AND hour = $2', [date, hour])
+    db.prepare('DELETE FROM blocks WHERE date = ? AND hour = ?').run(date, hour)
     return res.status(204).end()
   }
-  const result = await pool.query(
+  const result = db.prepare(
     `INSERT INTO blocks (date, hour, category_id, is_prep)
-     VALUES ($1, $2, $3, $4)
+     VALUES (?, ?, ?, ?)
      ON CONFLICT (date, hour)
-     DO UPDATE SET category_id = $3, is_prep = $4
-     RETURNING *`,
-    [date, hour, category_id, is_prep ?? false]
-  )
-  res.json(result.rows[0])
+     DO UPDATE SET category_id = excluded.category_id, is_prep = excluded.is_prep`
+  ).run(date, hour, category_id, is_prep ? 1 : 0)
+  const row = db.prepare('SELECT * FROM blocks WHERE id = ?').get(result.lastInsertRowid)
+  res.json(row)
 })
 
 // --- Report ---
 
-app.get('/api/report', async (req, res) => {
+app.get('/api/report', (req, res) => {
   const { start, end } = req.query
   if (!start || !end) return res.status(400).json({ error: 'start and end query params required' })
-  const result = await pool.query(
+  const rows = db.prepare(
     `SELECT
        category_id,
-       COUNT(*)::int AS hours,
-       COUNT(DISTINCT date)::int AS days
+       COUNT(*) AS hours,
+       COUNT(DISTINCT date) AS days
      FROM blocks
-     WHERE date >= $1 AND date <= $2
-       AND is_prep = false
+     WHERE date >= ? AND date <= ?
+       AND is_prep = 0
        AND category_id IS NOT NULL
-     GROUP BY category_id`,
-    [start, end]
-  )
-  res.json(result.rows)
+     GROUP BY category_id`
+  ).all(start, end)
+  res.json(rows)
 })
 
 // --- Daily Report ---
 
-app.get('/api/report/daily', async (req, res) => {
+app.get('/api/report/daily', (req, res) => {
   const { start, end, category_id } = req.query
   if (!start || !end || !category_id) return res.status(400).json({ error: 'start, end, and category_id query params required' })
-  const result = await pool.query(
-    `SELECT date, COUNT(*)::int AS hours
+  const rows = db.prepare(
+    `SELECT date, COUNT(*) AS hours
      FROM blocks
-     WHERE date >= $1 AND date <= $2
-       AND category_id = $3
-       AND is_prep = false
+     WHERE date >= ? AND date <= ?
+       AND category_id = ?
+       AND is_prep = 0
      GROUP BY date
-     ORDER BY date`,
-    [start, end, category_id]
-  )
-  res.json(result.rows)
+     ORDER BY date`
+  ).all(start, end, category_id)
+  res.json(rows)
 })
 
 const PORT = process.env.API_PORT || 3001

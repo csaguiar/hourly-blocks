@@ -1,11 +1,12 @@
-import pg from 'pg'
+import Database from 'better-sqlite3'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 
-const pool = new pg.Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'hourly_blocks',
-  user: process.env.DB_USER || process.env.USER,
-  password: process.env.DB_PASSWORD || '',
-})
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const dbPath = join(__dirname, '..', 'data', 'hourly.db')
 
-export default pool
+const db = new Database(dbPath)
+db.pragma('journal_mode = WAL')
+db.pragma('foreign_keys = ON')
+
+export default db
