@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns'
+import { format, addDays, addWeeks, subWeeks, startOfWeek } from 'date-fns'
 import type { Category, BlockMap } from './types'
 import * as api from './api'
 import WeeklyGrid from './components/WeeklyGrid'
@@ -13,7 +13,7 @@ function getWeekStart(date: Date): Date {
 }
 
 function getWeekEnd(weekStart: Date): string {
-  return format(addWeeks(weekStart, 1), 'yyyy-MM-dd')
+  return format(addDays(weekStart, 6), 'yyyy-MM-dd')
 }
 
 export default function App() {
@@ -103,7 +103,7 @@ export default function App() {
         </button>
         <div className="text-center">
           <span className="text-lg font-semibold text-gray-700">
-            {format(weekStart, 'MMMM d')} – {format(addWeeks(weekStart, 1), 'MMMM d, yyyy')}
+            {format(weekStart, 'MMMM d')} – {format(addDays(weekStart, 6), 'MMMM d, yyyy')}
           </span>
         </div>
         <button
