@@ -3,6 +3,8 @@ export interface Category {
   name: string
   color: string
   sort_order: number
+  rate_type: 'hourly' | 'daily' | null
+  rate: number | null
 }
 
 export interface Block {

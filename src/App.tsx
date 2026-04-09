@@ -6,6 +6,7 @@ import WeeklyGrid from './components/WeeklyGrid'
 import CategoryManager from './components/CategoryManager'
 import ReportModal from './components/ReportModal'
 import DailyReportModal from './components/DailyReportModal'
+import EarningsConfigModal from './components/EarningsConfigModal'
 import WeeklySummary from './components/WeeklySummary'
 
 function getWeekStart(date: Date): Date {
@@ -87,6 +88,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <ReportModal categories={categories} />
           <DailyReportModal categories={categories} />
+          <EarningsConfigModal categories={categories} onUpdate={loadCategories} />
           <CategoryManager categories={categories} onUpdate={loadCategories} />
         </div>
       </div>
