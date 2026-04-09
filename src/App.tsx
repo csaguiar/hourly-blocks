@@ -8,6 +8,7 @@ import ReportModal from './components/ReportModal'
 import DailyReportModal from './components/DailyReportModal'
 import EarningsConfigModal from './components/EarningsConfigModal'
 import WeeklySummary from './components/WeeklySummary'
+import WeeklyEarnings from './components/WeeklyEarnings'
 
 function getWeekStart(date: Date): Date {
   return startOfWeek(date, { weekStartsOn: 1 }) // Monday
@@ -133,6 +134,7 @@ export default function App() {
           onBlockChange={handleBlockChange}
         />
         <WeeklySummary blocks={blocks} categories={categories} />
+        <WeeklyEarnings blocks={blocks} categories={categories} />
       </div>
     </div>
   )
