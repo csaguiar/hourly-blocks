@@ -9,6 +9,7 @@
     "dev:server": "tsx watch server/index.ts",
     "db:setup": "tsx server/setup-db.ts",
     "build": "vite build",
+    "start": "tsx server/index.ts",
     "preview": "vite preview"
   },
   "dependencies": {

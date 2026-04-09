@@ -1,6 +1,13 @@
 import express from 'express'
 import cors from 'cors'
 import db from './db.js'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const rootDir = join(__dirname, '..')
+const distDir = join(rootDir, 'dist')
 
 const app = express()
 app.use(cors())
@@ -125,7 +132,17 @@ app.get('/api/report/daily', (req, res) => {
   res.json(rows)
 })
 
-const PORT = process.env.API_PORT || 3001
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir))
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
+    res.sendFile(join(distDir, 'index.html'))
+  })
+}
+
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3001)
+const HOST = process.env.HOST || '0.0.0.0'
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`)
 })

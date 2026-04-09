@@ -1,0 +1,19 @@
+[Unit]
+Description=Hourly Blocks app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cristiano
+Group=cristiano
+WorkingDirectory=/home/cristiano/src/hourly-blocks
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3001
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
