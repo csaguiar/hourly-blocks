@@ -6,6 +6,17 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// --- Migrations ---
+
+const columns = db.prepare("PRAGMA table_info(categories)").all() as { name: string }[]
+const columnNames = columns.map(c => c.name)
+if (!columnNames.includes('rate_type')) {
+  db.exec("ALTER TABLE categories ADD COLUMN rate_type TEXT DEFAULT NULL")
+}
+if (!columnNames.includes('rate')) {
+  db.exec("ALTER TABLE categories ADD COLUMN rate REAL DEFAULT NULL")
+}
+
 // --- Categories ---
 
 app.get('/api/categories', (_req, res) => {
@@ -14,19 +25,28 @@ app.get('/api/categories', (_req, res) => {
 })
 
 app.post('/api/categories', (req, res) => {
-  const { name, color, sort_order } = req.body
+  const { name, color, sort_order, rate_type, rate } = req.body
   const result = db.prepare(
-    'INSERT INTO categories (name, color, sort_order) VALUES (?, ?, ?)'
-  ).run(name, color || '#3B82F6', sort_order ?? 0)
+    'INSERT INTO categories (name, color, sort_order, rate_type, rate) VALUES (?, ?, ?, ?, ?)'
+  ).run(name, color || '#3B82F6', sort_order ?? 0, rate_type ?? null, rate ?? null)
   const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid)
   res.status(201).json(row)
 })
 
 app.put('/api/categories/:id', (req, res) => {
-  const { name, color, sort_order } = req.body
+  const { name, color, sort_order, rate_type, rate } = req.body
+  // For rate_type and rate, we need to distinguish between "not provided" (undefined) and "clear it" (null)
+  const hasRateType = 'rate_type' in req.body
+  const hasRate = 'rate' in req.body
   const result = db.prepare(
-    'UPDATE categories SET name = COALESCE(?, name), color = COALESCE(?, color), sort_order = COALESCE(?, sort_order) WHERE id = ?'
-  ).run(name, color, sort_order, req.params.id)
+    `UPDATE categories SET
+      name = COALESCE(?, name),
+      color = COALESCE(?, color),
+      sort_order = COALESCE(?, sort_order),
+      rate_type = CASE WHEN ? THEN ? ELSE rate_type END,
+      rate = CASE WHEN ? THEN ? ELSE rate END
+    WHERE id = ?`
+  ).run(name, color, sort_order, hasRateType ? 1 : 0, rate_type ?? null, hasRate ? 1 : 0, rate ?? null, req.params.id)
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' })
   const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id)
   res.json(row)
